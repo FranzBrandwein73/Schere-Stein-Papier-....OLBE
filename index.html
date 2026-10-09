@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#101827">
+<title>Olbes Schere · Stein · Papier</title>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;background:#101827;color:#fff;
+font-family:system-ui,sans-serif}
+body{height:100dvh;display:flex;flex-direction:column;overflow:hidden}
+.player{flex:1;min-height:0;display:flex;flex-direction:column;
+align-items:center;justify-content:center;gap:7px;padding:12px;
+background:radial-gradient(ellipse at center,#243952,#101827)}
+.player.top{transform:rotate(180deg)}
+h2{font-size:17px;margin:0;color:#8bdcff}
+.stats{font-size:13px;color:#c2d2e3}
+.stage{display:flex;align-items:center;justify-content:center;
+gap:22px;width:100%}
+.hand{font-size:clamp(58px,12dvh,105px);line-height:1.15;
+min-width:115px;text-align:center}
+.hand.spin{animation:pulse .2s infinite alternate}
+@keyframes pulse{to{transform:scale(1.12) rotate(5deg)}}
+svg{width:82px;height:100px;overflow:visible}
+.frame{stroke:#52647a;stroke-width:4;fill:none;stroke-linecap:round}
+.part{stroke:#ff8585;stroke-width:4;fill:none;
+stroke-linecap:round;visibility:hidden}
+.note{min-height:22px;font-weight:700;font-size:14px;text-align:center}
+button{border:0;border-radius:15px;background:#73dcff;
+color:#102032;font-size:18px;font-weight:800;
+padding:12px 28px;min-height:48px;touch-action:manipulation;
+cursor:pointer}
+button:disabled{opacity:.5;cursor:default}
+.middle{flex-shrink:0;display:flex;align-items:center;justify-content:space-between;
+gap:10px;padding:10px 14px;background:#07111e;
+border-top:1px solid #34475d;border-bottom:1px solid #34475d}
+.brand{font-size:12px;font-weight:800;color:#9ab0c8}
+.brand strong{display:block;color:#fff;font-size:15px}
+.middle button{padding:9px 13px;min-height:42px;font-size:13px;
+background:#293c52;color:#fff}
+@media(max-height:620px){
+.player{gap:3px;padding:6px}
+.hand{font-size:58px}
+svg{height:72px;width:65px}
+button{padding:8px 22px;min-height:42px}
+.middle{padding:6px 12px}
+}
+</style>
+</head>
+<body>
+<section class="player top" id="p1">
+<h2>SPIELER 2</h2>
+<div class="stats"></div>
+<div class="stage">
+<div class="hand" role="img" aria-label="Hand">✊</div>
+<svg viewBox="0 0 100 120" aria-label="Galgenmännchen">
+<path class="frame" d="M10 112H90M25 112V10H65V24M25 35L48 10"/>
+<circle class="part" cx="65" cy="36" r="12"/>
+<path class="part" d="M65 48V78"/>
+<path class="part" d="M65 55L47 68"/>
+<path class="part" d="M65 55L83 68"/>
+<path class="part" d="M65 78L49 100"/>
+<path class="part" d="M65 78L81 100"/>
+</svg>
+</div>
+<div class="note" aria-live="polite">Drücke deinen Startknopf.</div>
+<button class="start" type="button">START</button>
+</section>
+
+<div class="middle">
+<div class="brand"><strong>OLBES HAND-DUELL</strong>
+Schere · Stein · Papier</div>
+<button id="reset" type="button">Neues Spiel</button>
+</div>
+
+<section class="player" id="p0">
+<h2>SPIELER 1</h2>
+<div class="stats"></div>
+<div class="stage">
+<div class="hand" role="img" aria-label="Hand">✊</div>
+<svg viewBox="0 0 100 120" aria-label="Galgenmännchen">
+<path class="frame" d="M10 112H90M25 112V10H65V24M25 35L48 10"/>
+<circle class="part" cx="65" cy="36" r="12"/>
+<path class="part" d="M65 48V78"/>
+<path class="part" d="M65 55L47 68"/>
+<path class="part" d="M65 55L83 68"/>
+<path class="part" d="M65 78L49 100"/>
+<path class="part" d="M65 78L81 100"/>
+</svg>
+</div>
+<div class="note" aria-live="polite">Drücke deinen Startknopf.</div>
+<button class="start" type="button">START</button>
+</section>
+
+<script>
+const hands=["✊","✋","✌️"];
+const names=["Stein","Papier","Schere"];
+const players=[0,1].map(i=>{
+  const el=document.getElementById("p"+i);
+  return {
+    el,
+    hand:el.querySelector(".hand"),
+    note:el.querySelector(".note"),
+    button:el.querySelector(".start"),
+    stats:el.querySelector(".stats"),
+    parts:[...el.querySelectorAll(".part")],
+    wins:0,losses:0,choice:null,started:false,done:false,
+    interval:null,timeout:null
+  };
+});
+let finished=false;
+let nextTimer=null;
+let round=1;
+
+function showHand(p,value){
+  p.hand.textContent=hands[value];
+  p.hand.setAttribute("aria-label",names[value]);
+}
+function updateStats(){
+  players.forEach(p=>{
+    p.stats.textContent=`${p.wins} Punkte · ${p.losses}/6 Niederlagen`;
+    p.parts.forEach((part,i)=>{
+      part.style.visibility=i<p.losses?"visible":"hidden";
+    });
+    p.el.querySelector("svg").setAttribute(
+      "aria-label",`Galgenmännchen: ${p.losses} von 6 Teilen`
+    );
+  });
+}
+function start(i){
+  const p=players[i];
+  if(finished||p.started)return;
+  p.started=true;
+  p.button.disabled=true;
+  p.button.textContent="LÄUFT …";
+  p.note.textContent="Schere, Stein, Papier …";
+  p.hand.classList.add("spin");
+  let frame=Math.floor(Math.random()*3);
+  p.interval=setInterval(()=>{
+    showHand(p,frame++%3);
+  },85);
+  p.timeout=setTimeout(()=>{
+    clearInterval(p.interval);
+    p.interval=null;
+    p.timeout=null;
+    p.choice=Math.floor(Math.random()*3);
+    p.done=true;
+    p.hand.classList.remove("spin");
+    p.hand.textContent="🔒";
+    p.hand.setAttribute("aria-label","Ergebnis verdeckt");
+    p.note.textContent="Fertig! Warte auf den Gegner.";
+    p.button.textContent="BEREIT";
+    if(players.every(x=>x.done))resolveRound();
+  },1600+Math.random()*600);
+}
+function resolveRound(){
+  players.forEach(p=>showHand(p,p.choice));
+  const a=players[0].choice;
+  const b=players[1].choice;
+  if(a===b){
+    players.forEach(p=>p.note.textContent="Unentschieden!");
+  }else{
+    const winner=(a-b+3)%3===1?0:1;
+    const loser=1-winner;
+    players[winner].wins++;
+    players[loser].losses++;
+    players[winner].note.textContent="Runde gewonnen! +1 Punkt";
+    players[loser].note.textContent="Runde verloren.";
+    updateStats();
+    if(players[loser].losses>=6){
+      finished=true;
+      players[winner].note.textContent="🏆 Du hast das Spiel gewonnen!";
+      players[loser].note.textContent="Spiel vorbei – Revanche?";
+      players.forEach(p=>p.button.textContent="SPIEL ENDE");
+      return;
+    }
+  }
+  players.forEach(p=>p.button.textContent="NÄCHSTE RUNDE …");
+  nextTimer=setTimeout(()=>{
+    nextTimer=null;
+    round++;
+    players.forEach(p=>{
+      p.started=false;
+      p.done=false;
+      p.choice=null;
+      p.button.disabled=false;
+      p.button.textContent="START";
+      p.note.textContent=`Runde ${round} · Drücke START.`;
+    });
+  },2400);
+}
+function reset(){
+  clearTimeout(nextTimer);
+  nextTimer=null;
+  finished=false;
+  round=1;
+  players.forEach(p=>{
+    clearInterval(p.interval);
+    clearTimeout(p.timeout);
+    p.interval=null;
+    p.timeout=null;
+    p.wins=0;
+    p.losses=0;
+    p.choice=null;
+    p.started=false;
+    p.done=false;
+    p.hand.classList.remove("spin");
+    showHand(p,0);
+    p.note.textContent="Drücke deinen Startknopf.";
+    p.button.disabled=false;
+    p.button.textContent="START";
+  });
+  updateStats();
+}
+players.forEach((p,i)=>p.button.addEventListener("click",()=>start(i)));
+document.getElementById("reset").addEventListener("click",()=>{
+  const active=players.some(p=>p.started||p.wins||p.losses);
+  if(!active||confirm("Spielstand löschen und neu anfangen?"))reset();
+});
+reset();
+</script>
+</body>
+</html>
